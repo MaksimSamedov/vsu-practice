@@ -2,6 +2,8 @@ import hashlib
 import imghdr
 import io
 import math
+from typing import BinaryIO
+
 from PIL import Image
 
 from Crypto.Cipher import AES
@@ -13,7 +15,10 @@ def main():
     encrfilepath = './source/encr_009'
     imagepath = './res/image1.png'
     image2path = './res/image2.jpeg'
+    clean_image_path = './res/clear_image.jpeg'
+    pwpath = './res/password.txt'
 
+    # Task 1 ########
     # получим ключи
     dump = open(dumpfilepath, 'rb').read()
     keys = get_keys(dump)
@@ -21,7 +26,7 @@ def main():
 
     # достанем изображение
     encr = open(encrfilepath, 'rb').read()
-    image = get_image(encr, keys)
+    image, key = get_image(encr, keys)
     if image is None:
         print("Не подошёл ни один из переданных ключей")
         return
@@ -30,10 +35,20 @@ def main():
             f.write(image)
         print("Изображение было декодировано и сохранено по пути: " + imagepath)
 
+    # Task 2 ########
     new_image = convert_image(image)
     with open(image2path, 'wb') as f:
         f.write(new_image)
         print("Изображение-сообщение было получено и сохранено по пути: " + image2path)
+
+    # Task 3 ########
+    clean = get_clean_image(new_image)
+    clean.save(clean_image_path)
+    pw = get_image_password(new_image, clean_image_path, key)
+    print("Пароль: " + str(pw))
+    print(str(pw).encode("utf-8"))
+    with open(pwpath, 'wb') as f:
+        f.write(pw)
 
     pass
 
@@ -65,8 +80,8 @@ def get_image(data: bytes, keys: list):
         decipher = AES.new(key, AES.MODE_ECB)
         img = decipher.decrypt(data)
         if is_png(img):
-            return img
-    return None
+            return img, key
+    return None, None
 
 
 # по первым байтам выявляем png
@@ -84,8 +99,6 @@ def convert_image(data: bytes):
     image2 = bytes()
     for y in range(im.height):
         for x in range(im.width):
-            if x + y == 0:
-                print(image1[x, y])
             image_bytes = bytes(image1[x, y])
             changed_bytes = bytes([image_bytes[2], image_bytes[1], image_bytes[0], 0x00])
             new_bytes = bytes([my_crc8(changed_bytes)])
@@ -102,6 +115,29 @@ def my_crc8(data: bytes):
     res &= 0xFF
     res ^= 0xFF
     return res
+
+
+def get_image_password(image: bytes, clean_image_path: str, key: bytes):
+    start = 0
+    for i in range(len(image)):
+        if image[i] == 0xFF and image[i + 1] == 0xD9:
+            start = i + 2
+            break
+    new_data = image[start:]
+    with open(clean_image_path, 'rb') as f:
+        clean = f.read()
+    f.close()
+    key_2 = hashlib.md5(clean).digest()
+    decipher = AES.new(key_2, AES.MODE_CBC, IV=key)
+    return decipher.decrypt(new_data)
+
+
+def get_clean_image(data: bytes):
+    image = Image.open(io.BytesIO(data))
+    new_data = list(image.getdata())
+    image_without_exif = Image.new(image.mode, image.size)
+    image_without_exif.putdata(new_data)
+    return image_without_exif
 
 
 def test_crc8():
