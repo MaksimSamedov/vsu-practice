@@ -44,7 +44,7 @@ def main():
     # Task 3 ########
     clean = get_clean_image(new_image)
     clean.save(clean_image_path)
-    pw = get_image_password(new_image, clean_image_path, key)
+    pw = get_image_password(new_image, key)
     print("Пароль: " + str(pw))
     print(str(pw).encode("utf-8"))
     with open(pwpath, 'wb') as f:
@@ -117,19 +117,17 @@ def my_crc8(data: bytes):
     return res
 
 
-def get_image_password(image: bytes, clean_image_path: str, key: bytes):
+def get_image_password(image: bytes, key: bytes):
     start = 0
     for i in range(len(image)):
         if image[i] == 0xFF and image[i + 1] == 0xD9:
             start = i + 2
             break
     new_data = image[start:]
-    with open(clean_image_path, 'rb') as f:
-        clean = f.read()
-    f.close()
+    clean = image[:start]
     key_2 = hashlib.md5(clean).digest()
     decipher = AES.new(key_2, AES.MODE_CBC, IV=key)
-    return decipher.decrypt(new_data)
+    return decipher.decrypt(new_data[:16])
 
 
 def get_clean_image(data: bytes):
