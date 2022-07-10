@@ -1,5 +1,6 @@
 import hashlib
 import io
+import math
 
 from PIL import Image
 
@@ -43,7 +44,6 @@ def main():
     clean.save(clean_image_path)
     pw = get_image_password(new_image, key)
     print("Пароль: " + str(pw))
-    print(str(pw).encode("utf-8"))
     with open(pwpath, 'wb') as f:
         f.write(pw)
 
@@ -120,7 +120,13 @@ def get_image_password(image: bytes, key: bytes):
     clean = image[:start]
     key_2 = hashlib.md5(clean).digest()
     decipher = AES.new(key_2, AES.MODE_CBC, IV=key)
-    return decipher.decrypt(new_data[:16])
+    res = decipher.decrypt(new_data[:-2])  # отрезаем лишние 2 байта, чтобы их было кратно 16
+    # results = 0
+    # for i in range(len(res) - 16):
+    #     if max(res[i:i + 16]) - min(res[i:i + 16]) < 120:
+    #         print(i, res[i:i + 16])
+    # print(results)
+    return res[:16]
 
 
 def get_clean_image(data: bytes):
